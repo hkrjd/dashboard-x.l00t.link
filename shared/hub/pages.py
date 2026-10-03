@@ -161,7 +161,9 @@ class PageBuilder:
                     }
                 )
             signed = self._signed(
-                {**submit, "fields": [{"name": f["name"], "kind": f["kind"]} for f in fields]}, "Save"
+                {**submit, "fields": [{"name": f["name"], "kind": f["kind"]} for f in fields]},
+                "Save",
+                context=title,
             )
             if signed is None:
                 return None

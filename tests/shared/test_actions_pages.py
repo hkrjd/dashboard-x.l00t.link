@@ -108,3 +108,20 @@ def test_job_view_progress():
     assert job_view({"id": "j1", "state": "weird"})["state"] == "running"
     done = job_view({"id": "j1", "state": "done", "result": {"message": "12 deleted"}})
     assert done["finished"] and done["message"] == "12 deleted"
+
+
+def test_a_form_names_what_it_saves():
+    """The audit log and the confirm box said only "Save" (seen live, 2026-10-03)."""
+    page = {
+        "blocks": [
+            {
+                "type": "form",
+                "title": "Duplicate time limit",
+                "fields": [{"name": "minutes", "label": "Minutes", "kind": "number"}],
+                "submit": {"label": "Save", "method": "PUT", "path": "/api/v1/window"},
+            }
+        ]
+    }
+    [form] = PageBuilder("dealops", KEY).build(page)["blocks"]
+    assert form["submit"]["label"] == "Save"
+    assert actions.verify(KEY, form["submit"]["token"]).label == "Duplicate time limit: Save"

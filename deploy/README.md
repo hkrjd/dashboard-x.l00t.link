@@ -62,7 +62,7 @@ Dockerfile and runs it with a root-owned compose file.
 
 ## Checks after the first login
 
-- Security page → the session's address is your real IP, not `172.31.250.1`.
+- Security page → the session's address is your real IP, not `10.231.90.1`.
   If it shows the gateway, the proxy is not sending `X-Forwarded-For` or the
   trusted address in `docker-compose.yml` (`FORWARDED_ALLOW_IPS`) is wrong.
 - `docker exec dashboard-x-hub python -c "import urllib.request; urllib.request.urlopen('https://example.com', timeout=5)"`

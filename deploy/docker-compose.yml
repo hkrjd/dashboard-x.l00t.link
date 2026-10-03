@@ -8,12 +8,11 @@
 #
 # tests/deploy/test_deploy_policy.py pins the security-relevant parts.
 #
-# PENDING the owner's reverse-proxy choice (docs/design.md §8, question 1).
-# This version is for a web server on the host (e.g. the one serving
-# amzan.store): it reaches the hub on 127.0.0.1:8790 through `edge`, whose
-# gateway is the only address whose X-Forwarded-For the hub trusts. If a proxy
-# container is chosen instead, `edge` becomes an internal network shared with
-# that container, `ports:` goes away, and the hub loses all egress.
+# The reverse proxy is the nginx already on the host (owner's choice,
+# 2026-10-03; deploy/nginx/). It reaches the hub on 127.0.0.1:8790 through
+# `edge`, whose gateway is the only address whose X-Forwarded-For the hub
+# trusts. `edge` uses 10.231.90.0/24: the 172.16/12 ranges are taken by the
+# other bots on this server (italy-affiliaterxbot has 172.31.0.0/16).
 
 name: dashboard-x
 
@@ -33,7 +32,7 @@ services:
       HUB_BOTS_DIR: /config
       # uvicorn takes the client address from X-Forwarded-For only when the
       # connection comes from here: the host side of `edge`.
-      FORWARDED_ALLOW_IPS: 172.31.250.1
+      FORWARDED_ALLOW_IPS: 10.231.90.1
       HOME: /tmp
 
     volumes:
@@ -78,8 +77,8 @@ networks:
   edge:
     ipam:
       config:
-        - subnet: 172.31.250.0/24
-          gateway: 172.31.250.1
+        - subnet: 10.231.90.0/24
+          gateway: 10.231.90.1
   # Made on the server beforehand (docker network create --internal hub_net),
   # shared with every bot's API; compose only joins it.
   hub_net:

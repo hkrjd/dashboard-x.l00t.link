@@ -384,7 +384,14 @@ Root / owner work, in order `[S11]`:
    2026-10-03**, with the deploy files in `deploy/`.
 3. DealOps: service-function moves and the API in the order of §4, off
    unless `HUB_API_TOKEN` is set; tests. Deployable on its own, changes
-   nothing for Telegram (except the Cleanup button, if the owner agrees).
+   nothing for Telegram (except the Cleanup button, if the owner agrees). — **steps 1–3 of §4
+   done and deployed 2026-10-03** (DealOps `23f2c3d`): API skeleton, the
+   six menu pages, FeatureService (switches, B3), time limits, channels
+   add/rename/remove, health check, Amazon limit, backup (synchronous, it
+   takes under a second), Cleanup and Stock Check as jobs with the B4 lock;
+   the Telegram Cleanup button now runs as a job (owner: yes). Still to do:
+   reviews, failed deletes, Only Notify, AI settings and feedback (owner:
+   AI in v1).
 4. Hub: DealOps pages.
 5. Server (with the owner, root): the list in §6.
 6. Live: read-only pages first, then switches and buttons.
@@ -431,15 +438,12 @@ undo a removal. Re-adding a channel before its purge is what restores it.
 
 ## 8. Open questions for the owner
 
-1. Reverse proxy: reuse the amzan.store web server, or a separate
-   nginx/Caddy container? (Needs a look at the server; decides the trusted
-   proxy address in §1.)
-2. Telegram message to the owner after 5 failed logins in a row — yes? (Draft:
-   yes, through DealOps' bot token or a separate one.)
-3. Telegram's Cleanup button moves onto the background job, so channel posts
-   no longer wait while a cleanup runs. Recommended, but it changes the live
-   bot. Yes / no?
-4. AI settings pages in v1, or v1.1? (Draft: last step of v1, can slip to
-   v1.1 without blocking the rest.)
+1. ~~Reverse proxy~~ — decided 2026-10-03: the nginx already on the host
+   (it holds port 443 for the shortener sites) gets one more site file for
+   dashboard-x; the hub publishes `127.0.0.1:8790`. Waiting for the owner's
+   `nginx -T` listing to check for clashes.
+2. ~~Login alert~~ — yes (default kept).
+3. ~~Cleanup button as a job~~ — owner: yes, done 2026-10-03.
+4. ~~AI pages~~ — owner: in v1 ("abhi").
 5. Web sessions end when the password changes — yes by default.
 6. Any action that must stay Telegram-only? (Draft: restore from backup.)

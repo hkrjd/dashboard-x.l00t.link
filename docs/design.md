@@ -389,9 +389,12 @@ Root / owner work, in order `[S11]`:
    six menu pages, FeatureService (switches, B3), time limits, channels
    add/rename/remove, health check, Amazon limit, backup (synchronous, it
    takes under a second), Cleanup and Stock Check as jobs with the B4 lock;
-   the Telegram Cleanup button now runs as a job (owner: yes). Still to do:
-   reviews, failed deletes, Only Notify, AI settings and feedback (owner:
-   AI in v1).
+   the Telegram Cleanup button now runs as a job (owner: yes). Steps 4–5
+   done and deployed the same day (DealOps `73969f4`): Reviews, failed
+   deletes, Only Notify votes and comments, AI master switch, rules,
+   settings, test connection and feedback. An answer given on the web takes
+   the buttons off the Telegram message it answers. v1 of the DealOps API
+   is complete; it stays off until the root work below.
 4. Hub: DealOps pages.
 5. Server (with the owner, root): the list in §6.
 6. Live: read-only pages first, then switches and buttons.

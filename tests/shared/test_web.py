@@ -130,12 +130,15 @@ def test_wrong_codes_end_the_preauth_session(client, enrolled):
 
 def test_otp_code_cannot_be_replayed(make_client, enrolled):
     totp, _ = enrolled
+    # One code for both: computing it twice could straddle a 30 s step and
+    # give a new, valid code (that made this test flaky in CI, 2026-10-03).
+    code = next_code(totp)
     first = make_client()
-    log_in(first, totp)
+    log_in(first, totp, code=code)
     second = make_client()
     second.post("/login", data={"username": USERNAME, "password": PASSWORD})
     csrf = csrf_of(second.get("/login/otp").text)
-    response = second.post("/login/otp", data={"csrf": csrf, "code": next_code(totp)})
+    response = second.post("/login/otp", data={"csrf": csrf, "code": code})
     assert response.status_code == 401
 
 

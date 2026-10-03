@@ -152,14 +152,14 @@ def next_code(totp: pyotp.TOTP, step_offset: int = 0) -> str:
     return totp.generate_otp(int(time.time() // 30) + step_offset)
 
 
-def log_in(client: TestClient, totp: pyotp.TOTP, step_offset: int = 0) -> str:
+def log_in(client: TestClient, totp: pyotp.TOTP, step_offset: int = 0, code: str | None = None) -> str:
     """Logs in through both steps; returns the csrf token of the session."""
     response = client.post("/login", data={"username": USERNAME, "password": PASSWORD}, follow_redirects=False)
     assert response.status_code == 303, response.text
     page = client.get("/login/otp")
     response = client.post(
         "/login/otp",
-        data={"csrf": csrf_of(page.text), "code": next_code(totp, step_offset)},
+        data={"csrf": csrf_of(page.text), "code": code or next_code(totp, step_offset)},
         follow_redirects=False,
     )
     assert response.status_code == 303 and response.headers["location"] == "/", response.text

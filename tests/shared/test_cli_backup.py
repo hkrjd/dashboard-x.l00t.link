@@ -1,4 +1,3 @@
-import os
 import sqlite3
 
 import pytest
@@ -63,4 +62,4 @@ def test_load_bots_skips_bad_folders(settings):
     assert sorted(bots) == ["dealops", "notoken"]
     assert bots["dealops"].configured and not bots["notoken"].configured
     assert bots["notoken"].display_name == "notoken"
-    assert os.sep not in bots["dealops"].api_url
+    assert bots["dealops"].api_url == "http://dealops:8081"

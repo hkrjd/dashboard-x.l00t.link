@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Bots</h1>
+{% if not bots %}
+<p class="muted">No bots are set up yet. Each bot needs a folder with <code>config.toml</code> next to <code>shared/</code> on the server.</p>
+{% endif %}
+<div class="grid">
+{% for bot, meta in bots %}
+  <a class="card bot" href="/bots/{{ bot.name }}">
+    <h2>{{ bot.display_name }}</h2>
+    {% if meta.ok %}
+      <p class="status good">Online{% if meta.health %} · {{ meta.health }}{% endif %}</p>
+      {% if meta.version %}<p class="muted small">Version {{ meta.version[:12] }}</p>{% endif %}
+    {% else %}
+      <p class="status bad">Offline</p>
+      <p class="muted small">{{ meta.error }}</p>
+    {% endif %}
+  </a>
+{% endfor %}
+</div>
+{% endblock %}

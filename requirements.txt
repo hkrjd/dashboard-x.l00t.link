@@ -1,0 +1,11 @@
+# Runtime dependencies of the hub, exact versions.
+argon2-cffi==25.1.0
+cryptography==50.0.2
+fastapi==0.142.2
+httpx==0.28.1
+jinja2==3.1.6
+pyotp==2.10.0
+python-multipart==0.0.32
+segno==1.6.6
+tzdata==2026.4
+uvicorn==0.54.0

@@ -1,4 +1,4 @@
-# dashboard-x — design (draft 2, 2026-10-03)
+# dashboard-x — design (draft 3, 2026-10-03)
 
 A web dashboard at `https://dashboard-x.l00t.link` to see and control the
 owner's Telegram bots from a browser. DealOps first; LootDeals, AffiliaterXBot
@@ -7,6 +7,11 @@ and later bots plug in the same way.
 Draft 2 folds in the Fable 5.1 review of draft 1 (2026-10-03). Review items
 are tagged in the text as `[B1]`…`[B6]` (blockers), `[S1]`…`[S11]`
 (should-fix) and `[N1]`…`[N5]` (nice-to-have), so each change can be traced.
+
+Draft 3 records what building the hub settled (tagged `[D3]`): bots describe
+their pages as JSON blocks (§2a) so the hub needs no per-bot templates; the
+per-username delay is capped at 30 s; the failed-login alert goes through a
+bot's API because the hub has no internet access of its own.
 
 ## Decisions already made by the owner
 
@@ -45,8 +50,12 @@ browser ──HTTPS──> reverse proxy (TLS) ──proxy net──> hub contai
 - **What "internal" really means** `[S5][S6]`: `internal: true` stops traffic
   on *that* network from leaving the server; it does not limit a container's
   other networks. So:
-  - The hub sits only on `hub_net` and on the proxy's network, and has no
-    egress at all (it needs none: HTMX is served by the hub itself).
+  - With a proxy container, the hub sits only on `hub_net` and on the
+    proxy's internal network, and has no egress at all (it needs none: HTMX
+    is served by the hub itself). With a web server on the host, the hub
+    needs one ordinary bridge network (`edge`) to publish `127.0.0.1:8790`,
+    and that bridge does give it egress — one more reason to prefer the
+    container, but not a blocker `[D3]`.
   - A bot's API listens on `0.0.0.0:8081` inside the container, so it is also
     reachable from the bot's other networks (DealOps: `default`,
     `price_net`). The bearer token (§2) is what protects it; `ports:` is
@@ -78,9 +87,13 @@ browser ──HTTPS──> reverse proxy (TLS) ──proxy net──> hub contai
 - Versioned: `/api/v1/...`. JSON in and out.
 - Every bot implements a common core:
   - `GET /api/v1/meta` → name, version (git sha), health, and the list of
-    page ids it offers. The hub builds its menu from this `[N1]`.
-  - `GET /api/v1/dashboard` → the summary cards.
+    page ids it offers (`[{"id", "title"}]`, the first is the bot's home).
+    The hub builds its menu from this `[N1]`.
+  - `GET /api/v1/pages/{page_id}` → one page in the block format of §2a.
+    `dashboard` is the summary page `[D3]`.
   - `GET /api/v1/jobs`, `GET /api/v1/jobs/{id}` → long-running actions (below).
+  - `POST /api/v1/alerts {"text"}` → optional; the bot sends the text to its
+    owner on Telegram. Only the bot named in `HUB_ALERT_BOT` needs it `[D3]`.
 - Bot-specific endpoints below the core (DealOps list in §4).
 - Every mutating call carries `X-Request-Id` and `X-Actor` (the hub user);
   the bot writes them to its own action log, like a Telegram admin action
@@ -116,12 +129,41 @@ browser ──HTTPS──> reverse proxy (TLS) ──proxy net──> hub contai
   only. The bot API trusts the token and does what it is told; it has no
   confirm tokens.
 
-Adding a bot later = implement `meta` + `dashboard` + `jobs` + its own
-endpoints, join `hub_net` with an alias, add one entry (name, URL) to the hub
-config and one token to `shared/.env`. The hub renders generic pages (cards,
-tables, toggle lists, action buttons with confirm) for each page id from
-`meta`; a page id that has a template in `bots/<name>/` gets that template
-instead.
+Adding a bot later = implement `meta` + `pages` + `jobs` + its own
+mutating endpoints, join `hub_net` with an alias, add its folder with
+`config.toml` next to `shared/` on the server and one token to `shared/.env`.
+Nothing changes in the hub's code.
+
+### 2a. Page format `[D3]`
+
+A page is `{"title": "...", "blocks": [...]}`. The bot decides what is on
+it; the hub only knows these block types and renders each the same way for
+every bot. Every string is escaped; anything off-format is dropped.
+
+| `type` | Fields | Renders as |
+|---|---|---|
+| `text` | `title?`, `text` | a paragraph (line breaks kept) |
+| `cards` | `items: [{label, value, note?, tone?: good / warn / bad, page?}]` | number cards, optionally linking to a page |
+| `table` | `columns`, `rows: [[cell…] or {cells, page?}]`, `empty?`, `pager?: {prev?, next?}` | a table; a row's first cell links to `page` |
+| `switches` | `items: [{label, on, note?, turn_on?: action, turn_off?: action}]` | ON/OFF rows with one button for the opposite state |
+| `actions` | `items: [action]` | buttons |
+| `links` | `items: [{label, page, note?}]` | a list of links to other pages |
+| `form` | `fields: [{name, label, kind: text / number / select, value?, options?, help?}]`, `submit: action` | inputs + a submit button |
+
+An **action** is `{label, method: POST / PUT / PATCH / DELETE, path: "/api/v1/…",
+body?, confirm?, danger?}`. The hub signs every action it renders (HMAC) and
+only sends a correctly signed one, to the bot it came from, so a request to
+the hub can replay what a bot offered but never reach another bot address.
+`confirm` makes the hub ask on the page first; `danger` paints the button red.
+A form's submit body is the signed `body` plus the declared fields (numbers
+converted, nothing else accepted).
+
+The answer to an action is either `200 {"message"}` (shown, then the page
+reloads its blocks) or `202 {"job_id", "kind"}` (the hub shows the job's
+progress until it ends), or an error from the error model above.
+
+Page ids are `[a-z0-9][a-z0-9_.:-]*`, so a page can carry its own arguments
+(`channel:-1001234`, `logs:-1001234:2`).
 
 ## 3. Login and security (hub)
 
@@ -151,9 +193,13 @@ one-user site that would let anyone lock the owner out:
 - Per IP (the real client IP, §1): 10 failed attempts in 15 min → that IP is
   blocked for 15 min.
 - Per username: growing delay after each failure (1 s, 2 s, 4 s … capped at
-  60 s), no lock.
-- After 5 failures in a row the owner gets a Telegram message (sent through
-  a bot the owner names in `shared/.env`; optional, off if unset).
+  30 s, under the proxy's usual 60 s timeout `[D3]`), no lock. The delay is
+  served before the password is checked, and the check still happens, so
+  the owner's right password always gets in.
+- After 5 failures in a row the owner gets a Telegram message, at most once
+  an hour. The hub has no internet access, so it asks a bot to send it
+  (`POST /api/v1/alerts` on the bot named by `HUB_ALERT_BOT`; off if unset)
+  `[D3]`.
 - Every attempt is logged (time, IP, user agent, step, result).
 
 Sessions:
@@ -200,7 +246,8 @@ Rules for the DealOps side:
 - Cleanup gets one lock (as Stock Check already has): a second caller —
   Telegram, web or the scheduler — gets "already running" `[B4]`.
 
-Read:
+Read — each is a page in the §2a format, built from the same data
+functions the Telegram views use `[D3]`:
 - dashboard (today's counts, stock check, API calls, AI) — same numbers as
   `dashboard_view.py`
 - channels: list with state (active/paused/pending removal), labels
@@ -276,11 +323,11 @@ The repo mirrors it, so a file's place on the server and in git is obvious:
 ```
 dashboard-x.l00t.link/            (git repo)
 ├── shared/                        the hub
-│   ├── hub/                       the Python package: app, auth, sessions, audit, bots (client + registry), cli
+│   ├── hub/                       the Python package: app, admin, sessions, audit, bots, actions, pages, cli
 │   ├── templates/                 base layout, login, OTP, generic bot pages
 │   └── static/                    css, htmx.min.js, htmx-config.js
 ├── bots/
-│   └── dealops/                   DealOps pages: templates/ + config.example.toml
+│   └── dealops/                   config.example.toml (pages come from the bot itself, §2a)
 ├── deploy/                        Dockerfile, pinned compose, deploy.sh, install.sh, README (installed by root to /opt)
 ├── tests/
 │   ├── shared/
@@ -333,7 +380,8 @@ Root / owner work, in order `[S11]`:
 
 1. This design, reviewed (Fable, done) and agreed with the owner.
 2. Hub: skeleton, login + TOTP + sessions + lockout + audit + admin CLI,
-   generic bot pages. Tests. (Changes nothing on the live bot.)
+   generic bot pages. Tests. (Changes nothing on the live bot.) — **done
+   2026-10-03**, with the deploy files in `deploy/`.
 3. DealOps: service-function moves and the API in the order of §4, off
    unless `HUB_API_TOKEN` is set; tests. Deployable on its own, changes
    nothing for Telegram (except the Cleanup button, if the owner agrees).
@@ -345,7 +393,9 @@ Root / owner work, in order `[S11]`:
 
 Where each action lives today (`dealops/app/bot/…`) and the endpoint it
 becomes. "Move" = the logic sits inside a Telegram handler and moves into a
-service function both use. All paths below are under `/api/v1`.
+service function both use. All paths below are under `/api/v1`. Since draft 3
+the `GET` rows are served as pages (§2a), e.g. `GET /channels/{id}` is page
+`channel:{id}`; the mutating rows stay as listed.
 
 | Telegram (callback / command) | Today | API v1 | Move? |
 |---|---|---|---|
@@ -354,11 +404,11 @@ service function both use. All paths below are under `/api/v1`.
 | Add channel `menu:add_channel` + text input | `handlers_admin._handle_pending_add_channel`; restores a pending removal via `ChannelRemovalService.add_or_restore` | `POST /channels` | yes |
 | Rename `/renamechannel` | `handlers_admin` | `PATCH /channels/{id}` | yes |
 | Remove `channel:…:remove` → confirm | `callbacks._handle_channel_callback`, removal service | `DELETE /channels/{id}` | small |
-| Settings panel / status `settings:{id}:panel|status` | `_settings_panel_text`, `status_text` | `GET /channels/{id}` | split data from text |
+| Settings panel / status `settings:{id}:panel\|status` | `_settings_panel_text`, `status_text` | `GET /channels/{id}` | split data from text |
 | Check Health `health:{id}` | `channel_health_service.check` | `POST /channels/{id}/health-check` | no |
-| Feature Controls `feature:{id}:menu|toggle` | `_handle_feature_callback`, `_toggle_fast_delete` (takes `query` only for the user id) | `GET /channels/{id}/features`, `PUT /channels/{id}/features/{key}` | yes (Fast Delete snapshot, B3 no-op) |
+| Feature Controls `feature:{id}:menu\|toggle` | `_handle_feature_callback`, `_toggle_fast_delete` (takes `query` only for the user id) | `GET /channels/{id}/features`, `PUT /channels/{id}/features/{key}` | yes (Fast Delete snapshot, B3 no-op) |
 | Window per channel / global `settings:…:window:*` | `_handle_settings_callback`, `_update_all_duplicate_windows` (twice) | `PUT /channels/{id}/window`, `PUT /settings/window` | yes, merge copies |
-| Auto-delete / pause `settings:…:auto_delete|pause` | `_set_feature_configured` | `PUT /channels/{id}/features/…` | yes |
+| Auto-delete / pause `settings:…:auto_delete\|pause` | `_set_feature_configured` | `PUT /channels/{id}/features/…` | yes |
 | `/pause`, `/resume` | `handlers_admin._set_monitoring_state` (copy of `_set_feature_configured`) | `PUT /channels/{id}/features/monitoring` | yes, merge copies |
 | Logs `logs:…` | `ActionLogRepository.page` | `GET /channels/{id}/logs` | no |
 | Cleanup one `settings:{id}:cleanup` | `cleanup_service.run_channel` | `POST /channels/{id}/cleanup` → job | job + lock |

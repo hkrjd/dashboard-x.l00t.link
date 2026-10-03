@@ -1,0 +1,14 @@
+<div class="confirm" role="alertdialog" aria-labelledby="confirm-title">
+  <p id="confirm-title"><strong>{{ action.label }}</strong></p>
+  <p>{{ action.confirm }}</p>
+  <div class="actions">
+    <form class="inline" method="post" action="/bots/{{ bot.name }}/act" hx-post="/bots/{{ bot.name }}/act" hx-target="#flash">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="action" value="{{ token }}">
+      <input type="hidden" name="confirmed" value="1">
+      {% for name, value in values.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+      <button type="submit" class="{{ 'danger' if action.danger else '' }}">Yes, go ahead</button>
+    </form>
+    <button type="button" class="secondary" hx-get="/empty" hx-target="#flash">Cancel</button>
+  </div>
+</div>

@@ -1,0 +1,86 @@
+# The compose file production runs the hub with. Installed root:root 0644 at
+# /opt/dashboard-x-deploy/docker-compose.yml and used by deploy.sh.
+#
+# Not one from a delivered commit: a compose file can ask for `privileged`, a
+# host mount of / or the Docker socket -- root on the host. Changing this one
+# needs root on the server, on purpose. No `build:` section: deploy.sh builds
+# with the pinned Dockerfile beside this file.
+#
+# tests/deploy/test_deploy_policy.py pins the security-relevant parts.
+#
+# PENDING the owner's reverse-proxy choice (docs/design.md §8, question 1).
+# This version is for a web server on the host (e.g. the one serving
+# amzan.store): it reaches the hub on 127.0.0.1:8790 through `edge`, whose
+# gateway is the only address whose X-Forwarded-For the hub trusts. If a proxy
+# container is chosen instead, `edge` becomes an internal network shared with
+# that container, `ports:` goes away, and the hub loses all egress.
+
+name: dashboard-x
+
+services:
+  hub:
+    image: dashboard-x:${APP_VERSION:-current}
+    pull_policy: never
+    container_name: dashboard-x-hub
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+
+    env_file:
+      - /home/deploy/Bots_web_dashboard/shared/.env
+    environment:
+      HUB_DATA_DIR: /data
+      HUB_BOTS_DIR: /config
+      # uvicorn takes the client address from X-Forwarded-For only when the
+      # connection comes from here: the host side of `edge`.
+      FORWARDED_ALLOW_IPS: 172.31.250.1
+      HOME: /tmp
+
+    volumes:
+      # hub.db, its backups -- the only writable place.
+      - /home/deploy/Bots_web_dashboard/shared/data:/data
+      # Each bot's config.toml (display name, API URL). Read-only.
+      - /home/deploy/Bots_web_dashboard:/config:ro
+
+    ports:
+      - "127.0.0.1:8790:8000"
+
+    networks:
+      - edge
+      - hub_net
+
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 192m
+    pids_limit: 64
+    stop_grace_period: 10s
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      start_interval: 3s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
+          gateway: 172.31.250.1
+  # Made on the server beforehand (docker network create --internal hub_net),
+  # shared with every bot's API; compose only joins it.
+  hub_net:
+    external: true

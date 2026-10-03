@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Log in · dashboard-x{% endblock %}
+{% block main %}
+<section class="auth">
+  <h1>dashboard-x</h1>
+  {% if error %}<p class="flash bad" role="alert">{{ error }}</p>{% endif %}
+  <form class="stack" method="post" action="/login">
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button type="submit">Next</button>
+  </form>
+</section>
+{% endblock %}

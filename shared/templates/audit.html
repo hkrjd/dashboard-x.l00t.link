@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Audit log · dashboard-x{% endblock %}
+{% block main %}
+<h1>Audit log</h1>
+<div class="table-wrap"><table>
+  <thead><tr><th>When</th><th>Bot</th><th>What</th><th>Result</th><th>Details</th><th>Address</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td>{{ r.at|when }}</td><td>{{ r.bot or '' }}</td><td>{{ r.action }}</td><td>{{ r.result }}</td>
+        <td class="small">{{ r.detail or '' }}{% if r.request_id %}<br><span class="muted">request {{ r.request_id }}</span>{% endif %}</td>
+        <td>{{ r.ip or '' }}</td></tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">Nothing yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<p class="pager">
+  {% if page > 1 %}<a href="/audit?page={{ page - 1 }}">‹ Newer</a>{% endif %}
+  {% if has_next %}<a href="/audit?page={{ page + 1 }}">Older ›</a>{% endif %}
+</p>
+{% endblock %}

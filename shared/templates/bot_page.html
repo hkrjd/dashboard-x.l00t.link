@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title if page and page.title else bot.display_name }} · dashboard-x{% endblock %}
+{% block main %}
+<div class="crumbs"><a href="/">Bots</a> › <strong>{{ bot.display_name }}</strong>
+  {% if not meta.ok %}<span class="status bad">Offline</span>{% endif %}
+</div>
+{% if meta.pages %}
+<nav class="tabs">
+  {% for p in meta.pages %}
+  <a href="/bots/{{ bot.name }}/pages/{{ p.id }}"{% if p.id == page_id or page_id.startswith(p.id ~ ':') %} aria-current="page"{% endif %}>{{ p.title }}</a>
+  {% endfor %}
+</nav>
+{% endif %}
+<div id="flash" aria-live="polite"></div>
+<div id="blocks" hx-get="/bots/{{ bot.name }}/pages/{{ page_id }}/blocks" hx-trigger="page-refresh from:body" hx-swap="innerHTML">
+{% include "_blocks.html" %}
+</div>
+{% endblock %}

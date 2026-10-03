@@ -1,0 +1,10 @@
+<div class="job {{ job.state }}"{% if not job.finished %} hx-get="/bots/{{ bot.name }}/jobs/{{ job.id }}" hx-trigger="load delay:2s" hx-swap="outerHTML"{% endif %}>
+  {% if job.finished %}
+    <p class="flash {{ 'good' if job.state == 'done' else 'bad' }}">{{ 'Finished.' if job.state == 'done' else 'Failed.' }} {{ job.message }}</p>
+  {% else %}
+    <p><strong>{{ (job.kind or 'Job')|replace('_', ' ')|capitalize }}</strong> — {{ job.state }}{% if job.done is not none and job.total %}: {{ job.done }} / {{ job.total }}{% endif %}</p>
+    {% if job.percent is not none %}<progress max="100" value="{{ job.percent }}">{{ job.percent }}%</progress>{% else %}<progress></progress>{% endif %}
+    {% if job.current %}<p class="muted small">{{ job.current }}</p>{% endif %}
+    {% if job.message %}<p class="muted small">{{ job.message }}</p>{% endif %}
+  {% endif %}
+</div>

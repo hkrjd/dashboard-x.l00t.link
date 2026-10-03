@@ -1,0 +1,5 @@
+# /home/deploy/Bots_web_dashboard/dealops/config.toml on the server.
+# No secrets here: the API token goes in shared/.env as HUB_BOT_TOKEN_DEALOPS.
+display_name = "DealOps"
+# The bot's alias on hub_net (its pinned compose sets `aliases: [dealops]`).
+api_url = "http://dealops:8081"

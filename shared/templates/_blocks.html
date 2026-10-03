@@ -1,0 +1,97 @@
+{% macro action_form(a, button_class="") -%}
+<form class="inline" method="post" action="/bots/{{ bot.name }}/act" hx-post="/bots/{{ bot.name }}/act" hx-target="#flash">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="action" value="{{ a.token }}">
+  <button type="submit" class="{{ 'danger' if a.danger else button_class }}">{{ a.label }}</button>
+</form>
+{%- endmacro %}
+{% if error %}
+<p class="flash bad">{{ error }}</p>
+{% elif page %}
+{% if page.title %}<h1>{{ page.title }}</h1>{% endif %}
+{% for block in page.blocks %}
+<section class="block block-{{ block.type }}">
+  {% if block.title %}<h2>{{ block.title }}</h2>{% endif %}
+
+  {% if block.type == "text" %}
+  <p class="text">{{ block.text }}</p>
+
+  {% elif block.type == "cards" %}
+  <div class="grid">
+    {% for c in block["items"] %}
+    {% if c.page %}<a class="card stat {{ c.tone or '' }}" href="/bots/{{ bot.name }}/pages/{{ c.page }}">{% else %}<div class="card stat {{ c.tone or '' }}">{% endif %}
+      <span class="label">{{ c.label }}</span>
+      <span class="value">{{ c.value }}</span>
+      {% if c.note %}<span class="note">{{ c.note }}</span>{% endif %}
+    {% if c.page %}</a>{% else %}</div>{% endif %}
+    {% endfor %}
+  </div>
+
+  {% elif block.type == "table" %}
+  {% if block.rows %}
+  <div class="table-wrap"><table>
+    <thead><tr>{% for col in block.columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in block.rows %}
+      <tr>{% for cell in row.cells %}<td>{% if loop.first and row.page %}<a href="/bots/{{ bot.name }}/pages/{{ row.page }}">{{ cell }}</a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}</tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <p class="muted">{{ block.empty }}</p>
+  {% endif %}
+  {% if block.prev or block.next %}
+  <p class="pager">
+    {% if block.prev %}<a href="/bots/{{ bot.name }}/pages/{{ block.prev }}">‹ Newer</a>{% endif %}
+    {% if block.next %}<a href="/bots/{{ bot.name }}/pages/{{ block.next }}">Older ›</a>{% endif %}
+  </p>
+  {% endif %}
+
+  {% elif block.type == "switches" %}
+  <ul class="switches">
+    {% for s in block["items"] %}
+    <li>
+      <span class="dot {{ 'on' if s.on else 'off' }}" aria-hidden="true"></span>
+      <span class="name">{{ s.label }} <strong>{{ 'ON' if s.on else 'OFF' }}</strong>
+        {% if s.note %}<span class="note">{{ s.note }}</span>{% endif %}</span>
+      {% if s.action %}{{ action_form(s.action, "secondary") }}{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% elif block.type == "actions" %}
+  <div class="actions">
+    {% for a in block["items"] %}{{ action_form(a) }}{% endfor %}
+  </div>
+
+  {% elif block.type == "links" %}
+  <ul class="links">
+    {% for l in block["items"] %}
+    <li><a href="/bots/{{ bot.name }}/pages/{{ l.page }}">{{ l.label }}</a>{% if l.note %} <span class="note">{{ l.note }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+
+  {% elif block.type == "form" %}
+  <form class="stack" method="post" action="/bots/{{ bot.name }}/act" hx-post="/bots/{{ bot.name }}/act" hx-target="#flash">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <input type="hidden" name="action" value="{{ block.submit.token }}">
+    {% for f in block.fields %}
+    <label>{{ f.label }}
+      {% if f.kind == "select" %}
+      <select name="{{ f.name }}">
+        {% for o in f.options %}<option value="{{ o.value }}"{% if o.value == f.value %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+      </select>
+      {% elif f.kind == "number" %}
+      <input name="{{ f.name }}" type="number" inputmode="numeric" value="{{ f.value }}" required>
+      {% else %}
+      <input name="{{ f.name }}" value="{{ f.value }}" required>
+      {% endif %}
+      {% if f.help %}<span class="note">{{ f.help }}</span>{% endif %}
+    </label>
+    {% endfor %}
+    <div><button type="submit"{% if block.submit.danger %} class="danger"{% endif %}>{{ block.submit.label }}</button></div>
+  </form>
+  {% endif %}
+</section>
+{% endfor %}
+{% endif %}

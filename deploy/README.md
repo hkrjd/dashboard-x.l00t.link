@@ -35,16 +35,22 @@ Dockerfile and runs it with a root-owned compose file.
 
    and put the private key in the GitHub secret `DEPLOY_SSH_PRIVATE_KEY`
    (then delete the local copy).
-6. Reverse proxy (pending the owner's choice, design §8 Q1). For a web server
-   on the host, proxy `https://dashboard-x.l00t.link` to `http://127.0.0.1:8790`
-   and **set** (not append) the forwarded headers, e.g. for nginx:
+6. Reverse proxy: the nginx already on the host (owner's choice,
+   2026-10-03), with the files in `deploy/nginx/`. Once the DNS record
+   answers (`dig +short dashboard-x.l00t.link` shows the server):
 
-   ```nginx
-   proxy_set_header X-Forwarded-For   $remote_addr;
-   proxy_set_header X-Forwarded-Proto $scheme;
-   proxy_set_header Host              $host;
-   add_header Strict-Transport-Security "max-age=31536000" always;
+   ```bash
+   ss -ltn | grep -q ':8790 ' && echo "8790 is taken -- stop" || echo "8790 free"
+   certbot certonly --nginx -d dashboard-x.l00t.link
+   install -o root -g root -m 0644 deploy/nginx/dashboard-x-proxy.conf /etc/nginx/snippets/dashboard-x-proxy.conf
+   install -o root -g root -m 0644 deploy/nginx/dashboard-x.l00t.link.conf /etc/nginx/sites-available/dashboard-x.l00t.link
+   ln -s /etc/nginx/sites-available/dashboard-x.l00t.link /etc/nginx/sites-enabled/dashboard-x.l00t.link
+   nginx -t && systemctl reload nginx
    ```
+
+   `nginx -t` must pass before the reload; if it fails, remove the link in
+   sites-enabled and nothing else is affected. The site sets (never
+   appends) `X-Forwarded-For`, and rate-limits the two login posts.
 
 7. After the first deploy, make the login inside the container:
 

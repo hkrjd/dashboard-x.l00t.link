@@ -1,12 +1,17 @@
-name: Test
+name: Test and deploy
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: dashboard-x-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -28,3 +33,60 @@ jobs:
           ruff format --check shared tests
       - name: Test
         run: pytest
+
+  # Only main, only after the tests pass. The key ("ci-dashboard-x") is
+  # forced on the server to /opt/dashboard-x-deploy/deploy.sh (deploy/),
+  # which ignores any command asked for: it reads a git bundle of this commit
+  # from stdin, builds it with the root-owned pinned Dockerfile, runs it with
+  # the pinned compose file, and keeps it only if it turns healthy. No image,
+  # compose file or script is uploaded.
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+      DEPLOY_SSH_KNOWN_HOSTS: ${{ vars.DEPLOY_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The bundle sent to the server must be self-contained.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate deployment variables
+        run: |
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PORT DEPLOY_SSH_KNOWN_HOSTS; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing GitHub Actions variable: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure strict SSH
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$DEPLOY_SSH_PRIVATE_KEY" ]]; then
+            echo "Missing GitHub Actions secret: DEPLOY_SSH_PRIVATE_KEY" >&2
+            exit 1
+          fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          TARGET="${DEPLOY_USER}@${DEPLOY_HOST}"
+          SSH_OPTIONS=(-i ~/.ssh/deploy_key -p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3)
+          set -o pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git bundle create - HEAD | ssh "${SSH_OPTIONS[@]}" "$TARGET"
+
+      - name: Forget the key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

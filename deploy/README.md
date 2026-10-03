@@ -34,7 +34,11 @@ Dockerfile and runs it with a root-owned compose file.
    ```
 
    and put the private key in the GitHub secret `DEPLOY_SSH_PRIVATE_KEY`
-   (then delete the local copy).
+   (then delete the local copy). Done 2026-10-03 (fingerprint
+   `SHA256:1mFP1vA/YMCjNBj7J4tIfFtP6J12OHY6ceSBF3fUE/w`); the variables
+   `DEPLOY_HOST`, `DEPLOY_PORT`, `DEPLOY_USER` and `DEPLOY_SSH_KNOWN_HOSTS`
+   are the same as DealOps'. Every push to `main` that passes the tests
+   deploys (`.github/workflows/test.yml`).
 6. Reverse proxy: the nginx already on the host (owner's choice,
    2026-10-03), with the files in `deploy/nginx/`. Once the DNS record
    answers (`dig +short dashboard-x.l00t.link` shows the server):
